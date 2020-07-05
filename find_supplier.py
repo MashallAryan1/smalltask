@@ -13,6 +13,9 @@ import re
 import string
 import argparse
 
+from nltk.corpus import stopwords 
+from nltk.tokenize import word_tokenize
+from nltk.stem import WordNetLemmatizer 
 
 
 
@@ -30,13 +33,15 @@ def read_invoice(file_name):
     words = ast.literal_eval(words)
     inv_df = pd.DataFrame(words)
     # sort the words according to their order in the original doc
-    inv_df.set_index(['page_id','line_id','pos_id'])
+    inv_df = inv_df.set_index(['page_id','line_id','pos_id'])
     inv_df.sort_index(inplace=True)
     
     return ' '.join(inv_df['word'])
 
 
 
+    
+lemat = WordNetLemmatizer()
 def clean(item):
     """
     preprocessing the input string to remove the unwanted characters and substrings     
@@ -45,25 +50,19 @@ def clean(item):
     
     """
     res = item.encode("ascii", errors="ignore").decode()
-    res = res.replace("-", " ").replace('&', "and").strip()
-    regex = re.escape(''.join(["(",")","'s","s'"]) )
-    res = re.sub('[{}]'.format(regex),'', res )
-    res =re.sub('\$\d+(.\d+)?','', res )
-    res =re.sub('\d+.(\d)+.(\d)+','', res )
-    res =re.sub('http\://','', res )
-    res= re.sub('((http|https)\:\/\/)?[a-zA-Z0-9\.\/\?\:@\-_=#]+\.([a-zA-Z]){2,6}([a-zA-Z0-9\.\&\/\?\:@\-_=#])*','', res )
-    res = re.sub('['+string.punctuation.replace('.','')+']+','',res)
+    res = re.sub('['+string.punctuation+']+','',res).strip()
+    res = word_tokenize(res.lower())
+    res = [lemat.lemmatize(item) for item in res if item not in stopwords.words('english')]    
+    return   " ".join(res)
 
-    return res.lower()                  
-
-def ngram(doc, n=(3,4)):
-    
-    seq = doc.split()
-    res = []
-    for num_gram in range(n[0],n[1]+1):
-        for i in range(len(seq)-num_gram):
-            res+=[' '.join(seq[i:i+num_gram])]
-    return res        
+# def ngram(doc, n=(3,4)):
+#
+#     seq = doc.split()
+#     res = []
+#     for num_gram in range(n[0],n[1]+1):
+#         for i in range(len(seq)-num_gram):
+#             res+=[' '.join(seq[i:i+num_gram])]
+#     return res
     
     
 def main(args):
@@ -72,21 +71,21 @@ def main(args):
     
     # read suppliers names
     sup_df = pd.read_csv(sup_file)
-    sup_df['SupplierName_c'] = sup_df['SupplierName'].apply(clean)
+    sup_df['SupplierName'] = sup_df['SupplierName'].apply(clean)
     
     
     # produce tfidf features
-    vectorizer = sklearn.feature_extraction.text.TfidfVectorizer(ngram_range=(3, 4), analyzer='char_wb')
-    doc_term_matrix = vectorizer.fit_transform(sup_df['SupplierName_c'])    
+    vectorizer = sklearn.feature_extraction.text.TfidfVectorizer(ngram_range=(1, 4), analyzer='word')
+    doc_term_matrix = vectorizer.fit_transform(sup_df['SupplierName'])
     
     nearestnbr = NearestNeighbors(n_neighbors=1).fit(doc_term_matrix ) 
     
     query = read_invoice(inv_file)
     
     query = clean(query)
-    query = ngram(query)
+
+    query_tfidf = vectorizer.transform(query.split())
     
-    query_tfidf = vectorizer.transform(query)    
     distances, indices = nearestnbr.kneighbors(query_tfidf)
     suppliers_index = indices[distances.argmin()]
     supplier = sup_df.iloc[suppliers_index]
