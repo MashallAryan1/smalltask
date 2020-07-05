@@ -3,7 +3,7 @@ A small task.assignment for Xtracta
 
 # Dependencies:
 
-Pandas, Ast, Sklearn
+Pandas, Ast, Sklearn, nltk
 
 
 
