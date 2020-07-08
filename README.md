@@ -9,7 +9,7 @@ Pandas, Ast, Sklearn, nltk
 
 Run the package from the commandline with the following format:
 ```
-python find_supplier.py -i <path to the invoice file> -s <path to the supliers file>
+python find_supplier.py -i <path to the invoice file> -s <path to the suppliers file>
 ```
 
 Alternatively: 
